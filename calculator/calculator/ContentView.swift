@@ -2,14 +2,19 @@
 //  ContentView.swift
 //  calculator
 //
-//  Created by 반성준 on 11/12/24.
 //
+//  ContentView.swift
+//  calculator
+//
+//  Created by 반성준 on 11/12/24.
+//  적당히 잘 봐주세요 ^^
 
 import SwiftUI
 
 struct ContentView: View {
     @State private var displayText: String = "0"  // 초기 디스플레이 텍스트
     @State private var expression: String = ""    // 계산할 수식
+    @State private var isResultDisplayed: Bool = false  // 결과가 표시된 상태인지 추적
 
     var body: some View {
         VStack {
@@ -58,28 +63,68 @@ struct ContentView: View {
     private func resetCalculator() {
         displayText = "0"
         expression = ""
+        isResultDisplayed = false
     }
 
     // 수식을 계산하여 결과 표시
     private func calculateResult() {
-        if let result = evaluateExpression(expression) {
+        // 잘못된 수식을 정리 (마지막 연산자 제거)
+        let sanitizedExpression = sanitizeExpression(expression)
+        
+        // 수식이 비어있으면 무시
+        if sanitizedExpression.isEmpty {
+            return
+        }
+        
+        // 0으로 나누는 경우 처리
+        if sanitizedExpression.contains("/0") {
+            displayText = "Error"
+            resetCalculator()
+            return
+        }
+
+        // 계산 결과 표시
+        if let result = evaluateExpression(sanitizedExpression) {
             displayText = "\(result)"
             expression = "\(result)"
+            isResultDisplayed = true
+        } else {
+            displayText = "Error"
         }
     }
 
     // 디스플레이 및 수식 업데이트
     private func updateDisplayAndExpression(with title: String) {
-        if displayText == "0" {
-            displayText = title
-        } else {
-            displayText += title
+        // 결과가 표시된 상태에서 새로운 숫자를 입력하면 수식 초기화
+        if isResultDisplayed {
+            if isOperator(title.first) {
+                expression = displayText
+            } else {
+                expression = ""
+                displayText = "0"
+            }
+            isResultDisplayed = false
         }
-        expression += title
         
-        // 수식이 "0"으로 시작하지 않도록 수정
-        if displayText.hasPrefix("0") && displayText.count > 1 {
-            displayText = String(displayText.dropFirst())
+        // 입력값이 숫자인 경우
+        if isNumber(title) {
+            if displayText == "0" || isResultDisplayed {
+                displayText = title
+            } else {
+                displayText += title
+            }
+            expression += title
+        }
+        // 입력값이 연산자인 경우
+        else if isOperator(title.first) {
+            // 수식이 비어있거나 끝이 연산자인 경우, 마지막 연산자를 교체
+            if expression.isEmpty || isOperator(expression.last) {
+                expression = String(expression.dropLast()) + title
+                displayText = expression
+            } else {
+                expression += title
+                displayText += title
+            }
         }
     }
 
@@ -87,6 +132,7 @@ struct ContentView: View {
     private func evaluateExpression(_ expression: String) -> Int? {
         let formattedExpression = expression
             .replacingOccurrences(of: "×", with: "*")
+            .replacingOccurrences(of: "/", with: "/")
             .replacingOccurrences(of: "÷", with: "/")
         
         let nsExpression = NSExpression(format: formattedExpression)
@@ -95,6 +141,26 @@ struct ContentView: View {
             return result
         }
         return nil
+    }
+
+    // 잘못된 수식을 정리 (마지막 연산자가 있으면 제거)
+    private func sanitizeExpression(_ expression: String) -> String {
+        var sanitizedExpression = expression
+        while let lastChar = sanitizedExpression.last, isOperator(lastChar) {
+            sanitizedExpression.removeLast()
+        }
+        return sanitizedExpression
+    }
+
+    // 연산자인지 확인
+    private func isOperator(_ char: Character?) -> Bool {
+        guard let char = char else { return false }
+        return "+-×/÷".contains(char)
+    }
+    
+    // 숫자인지 확인
+    private func isNumber(_ title: String) -> Bool {
+        return Int(title) != nil
     }
 }
 
