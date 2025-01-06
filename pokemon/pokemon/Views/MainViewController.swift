@@ -10,11 +10,10 @@ import RxSwift
 import RxCocoa
 import Kingfisher
 
-class MainViewController: UIViewController {
+final class MainViewController: UIViewController {
     private let viewModel = MainViewModel()
     private let disposeBag = DisposeBag()
-
-    // CollectionView 및 레이아웃 정의
+    
     private let collectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
         layout.itemSize = CGSize(width: 100, height: 120)
@@ -22,19 +21,18 @@ class MainViewController: UIViewController {
         layout.minimumInteritemSpacing = 10
         return UICollectionView(frame: .zero, collectionViewLayout: layout)
     }()
-
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
-        bindViewModel()
-        viewModel.fetchPokemonList(limit: 20, offset: 0)
+        setupBindings()
+        viewModel.fetchPokemonList()
     }
-
-    // UI 설정
+    
     private func setupUI() {
-        view.backgroundColor = .white
+        view.backgroundColor = .mainRed
         view.addSubview(collectionView)
-
+        
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             collectionView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -42,25 +40,39 @@ class MainViewController: UIViewController {
             collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         ])
-
-        collectionView.backgroundColor = .white
-        collectionView.register(PokemonCollectionViewCell.self, forCellWithReuseIdentifier: PokemonCollectionViewCell.identifier)
+        
+        collectionView.backgroundColor = .darkRed
+        collectionView.register(PokemonCollectionViewCell.self, forCellWithReuseIdentifier: "PokemonCell")
     }
-
-    // ViewModel 바인딩 처리
-    private func bindViewModel() {
-        // 셀 데이터 바인딩
+    
+    private func setupBindings() {
         viewModel.pokemonList
-            .bind(to: collectionView.rx.items(cellIdentifier: PokemonCollectionViewCell.identifier, cellType: PokemonCollectionViewCell.self)) { _, model, cell in
+            .bind(to: collectionView.rx.items(cellIdentifier: "PokemonCell", cellType: PokemonCollectionViewCell.self)) { _, model, cell in
                 cell.configure(with: model)
             }
             .disposed(by: disposeBag)
-
-        // 셀 선택 이벤트 처리
+        
         collectionView.rx.modelSelected(Models.Pokemon.self)
-            .subscribe(onNext: { pokemon in
-                print("Selected Pokemon: \(pokemon.name)")
+            .subscribe(onNext: { [weak self] pokemon in
+                let detailVC = DetailViewController(pokemon: pokemon)
+                self?.navigationController?.pushViewController(detailVC, animated: true)
             })
             .disposed(by: disposeBag)
+        
+        collectionView.rx.contentOffset
+            .filter { [weak self] offset in
+                guard let self = self else { return false }
+                return self.collectionView.isNearBottomEdge(offset: offset)
+            }
+            .subscribe(onNext: { [weak self] _ in
+                self?.viewModel.fetchPokemonList()
+            })
+            .disposed(by: disposeBag)
+    }
+}
+
+private extension UIScrollView {
+    func isNearBottomEdge(offset: CGPoint) -> Bool {
+        return contentOffset.y + frame.size.height + 100 > contentSize.height
     }
 }
